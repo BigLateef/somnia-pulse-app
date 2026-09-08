@@ -6,6 +6,7 @@ import { ArrowUpRight, Bell, ExternalLink, Radio, RefreshCw, ShieldCheck, Sparkl
 type NetworkState = { ok: boolean; chainId?: number; blockNumber?: number; checkedAt?: string; error?: string };
 type LiveTransfer = { tokenShort: string; tokenName?: string | null; symbol?: string | null; amountRaw?: string; amountDisplay?: string; priceUsd?: number | null; direction?: 'BUY' | 'SELL' | 'TRANSFER' | null; performancePct?: number | null; fromShort: string; toShort: string; blockNumber: number; transactionHash?: string };
 type ScoredWallet = { address: string; shortAddress: string; score: number; tier: string; transfers: number; inbound: number; outbound: number; uniqueTokens: number; earlyEntries: number; confirmedEntries?: number; winRate?: number | null; reason: string };
+type EventMarket = { marketId?: string | null; title: string; upSymbol?: string | null; upPrice?: number | null; downPrice?: number | null; expiresAt?: string | number | null };
 type Event = { icon: 'buy' | 'launch' | 'alert'; text: React.ReactNode; time: string };
 
 function shortBlock(block?: number) {
@@ -27,6 +28,8 @@ export default function Home() {
   const [network, setNetwork] = useState<NetworkState>({ ok: false });
   const [transfers, setTransfers] = useState<LiveTransfer[]>([]);
   const [scoredWallets, setScoredWallets] = useState<ScoredWallet[]>([]);
+  const [markets, setMarkets] = useState<EventMarket[]>([]);
+  const [marketError, setMarketError] = useState('');
   const [watchWallets, setWatchWallets] = useState<string[]>([]);
   const [walletInput, setWalletInput] = useState('');
   const [watchError, setWatchError] = useState('');
@@ -58,6 +61,19 @@ export default function Home() {
       setTransfers(data.transfers || []);
     } catch {
       setTransfers([]);
+    }
+  }
+
+  async function loadMarkets() {
+    try {
+      const response = await fetch('/api/markets', { cache: 'no-store' });
+      if (!response.ok) throw new Error('unavailable');
+      const data = await response.json();
+      setMarkets(data.markets || []);
+      setMarketError('');
+    } catch {
+      setMarkets([]);
+      setMarketError('DreamDEX market feed is unavailable right now.');
     }
   }
 
@@ -119,11 +135,13 @@ export default function Home() {
     checkNetwork();
     loadTransfers();
     loadWalletScores();
+    loadMarkets();
+    const marketTimer = window.setInterval(loadMarkets, 30000);
     const timer = window.setInterval(() => {
       loadTransfers();
       loadWalletScores();
     }, 15000);
-    return () => window.clearInterval(timer);
+    return () => { window.clearInterval(timer); window.clearInterval(marketTimer); };
   }, [watchWallets]);
 
   const signalRows = Array.from(new Map(transfers.map((transfer) => [transfer.tokenShort, transfer])).values()).slice(0, 4);
@@ -153,6 +171,11 @@ export default function Home() {
         <div className="watch-form"><input value={pulsePrompt} onChange={(event) => setPulsePrompt(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && pulseStage !== 1 && pulseStage !== 2 && pulseStage !== 3) runPulse(); }} placeholder="What is moving on Somnia right now?" aria-label="Pulse question" /><button className="btn" onClick={runPulse} disabled={pulseStage > 0 && pulseStage < 4}>{pulseStage > 0 && pulseStage < 4 ? 'Scanning…' : 'Run pulse'}</button></div>
         {pulseStage > 0 && pulseStage < 4 ? <div className="feed-item" style={{ marginTop: 12 }}><div className="feed-icon"><Radio size={14} /></div><div className="feed-text"><strong className="green">{pulseStage === 1 ? 'Warming the signal map…' : pulseStage === 2 ? 'Reading fresh Somnia blocks…' : 'Scoring wallet flow…'}</strong><br /><span className="muted">This wait is the product: the scan turns raw chain activity into a readable answer.</span></div></div> : null}
         {pulseResult ? <div className="feed-item" style={{ marginTop: 12 }}><div className="feed-icon"><Zap size={14} /></div><div className="feed-text"><strong className="green">Pulse complete</strong>{pulsePrompt ? <span className="muted"> · {pulsePrompt}</span> : null}<br /><span>{pulseResult}</span></div></div> : null}
+      </section>
+
+      <section className="card panel" style={{ marginBottom: 12 }}>
+        <div className="panel-head"><div><div className="panel-title">Event Contract Radar</div><div className="panel-subtitle">Live DreamDEX markets on Somnia · prices are Up probabilities</div></div><Radio size={16} className={markets.length ? 'green' : 'muted'} /></div>
+        {markets.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Market</th><th>Up</th><th>Down</th><th>Status</th></tr></thead><tbody>{markets.slice(0, 6).map((market) => <tr key={market.marketId || market.upSymbol || market.title}><td><div className="token-name">{market.title}</div><div className="token-ticker">{market.upSymbol || 'Binary event contract'}</div></td><td className="green mono">{market.upPrice == null ? '—' : `${Math.round(market.upPrice * 100)}%`}</td><td className="amber mono">{market.downPrice == null ? '—' : `${Math.round(market.downPrice * 100)}%`}</td><td><span className="badge">LIVE</span></td></tr>)}</tbody></table></div> : <div className="feed-item"><div className="feed-icon"><Radio size={14} /></div><div className="feed-text muted">{marketError || 'Loading live event markets…'}</div></div>}
       </section>
 
       <section className="stats">
