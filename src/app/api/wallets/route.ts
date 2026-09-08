@@ -143,7 +143,7 @@ export async function GET() {
     }
 
     // Remove liquidity pools, token contracts, and other contract addresses from the leaderboard.
-    const candidates = [...stats.values()].filter((wallet) => wallet.transfers >= 2);
+    const candidates = Array.from(stats.values()).filter((wallet) => wallet.transfers >= 2);
     const codeEntries = await Promise.all(candidates.map(async (wallet) => {
       try {
         const code = await rpc('eth_getCode', [wallet.address, 'latest']);
