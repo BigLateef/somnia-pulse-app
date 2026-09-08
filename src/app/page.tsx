@@ -8,20 +8,6 @@ type LiveTransfer = { tokenShort: string; tokenName?: string | null; symbol?: st
 type ScoredWallet = { address: string; shortAddress: string; score: number; tier: string; transfers: number; inbound: number; outbound: number; uniqueTokens: number; earlyEntries: number; confirmedEntries?: number; winRate?: number | null; reason: string };
 type Event = { icon: 'buy' | 'launch' | 'alert'; text: React.ReactNode; time: string };
 
-const demoEvents: Event[] = [ 
-  { icon: 'buy', text: <><strong>0x8f...c21</strong> accumulated <span className="green">$SOMI</span> · 18.4k tokens</>, time: '12 sec ago' },
-  { icon: 'launch', text: <><strong>New launch</strong> detected · <span className="amber">$NEONCAT</span> liquidity added</>, time: '43 sec ago' },
-  { icon: 'alert', text: <><strong>Flow alert</strong> · 7 wallets bought the same token</>, time: '2 min ago' },
-  { icon: 'buy', text: <><strong>Smart wallet</strong> entered <span className="green">$WAVE</span> before +31% move</>, time: '4 min ago' },
-];
-
-const demoWallets = [
-  { name: 'NightShift', address: '0xa7...91e4', pnl: '+$18.4k', avatar: 'N' },
-  { name: '0xCobra', address: '0x41...d09a', pnl: '+$9.7k', avatar: 'C' },
-  { name: 'EarlyBird', address: '0xf2...0bc7', pnl: '+$6.2k', avatar: 'E' },
-  { name: 'SomiSensei', address: '0x6b...a442', pnl: '+$4.8k', avatar: 'S' },
-];
-
 function shortBlock(block?: number) {
   return block ? block.toLocaleString('en-US') : '—';
 }
@@ -68,7 +54,7 @@ export default function Home() {
       const data = await response.json();
       setTransfers(data.transfers || []);
     } catch {
-      // Keep the demo stream visible if the public RPC is temporarily rate-limited.
+      setTransfers([]);
     }
   }
 
@@ -79,7 +65,7 @@ export default function Home() {
       const data = await response.json();
       setScoredWallets(data.wallets || []);
     } catch {
-      // Keep demo wallet rows visible until the indexer is ready.
+      setScoredWallets([]);
     }
   }
 
@@ -126,6 +112,8 @@ export default function Home() {
     return () => window.clearInterval(timer);
   }, [watchWallets]);
 
+  const signalRows = Array.from(new Map(transfers.map((transfer) => [transfer.tokenShort, transfer])).values()).slice(0, 4);
+
   return (
     <main className="shell">
       <header className="topbar">
@@ -149,7 +137,7 @@ export default function Home() {
       <section className="stats">
         <div className="card stat"><div className="stat-label">Network status</div><div className="stat-value green">{network.ok ? 'LIVE' : 'CHECKING'}</div><div className="stat-foot">{network.ok ? 'RPC responding now' : network.error || 'Connecting to RPC'}</div></div>
         <div className="card stat"><div className="stat-label">Latest block</div><div className="stat-value mono">{shortBlock(network.blockNumber)}</div><div className="stat-foot">Chain ID {network.chainId || 5031}</div></div>
-        <div className="card stat"><div className="stat-label">Tracked wallets</div><div className="stat-value">1,284</div><div className="stat-foot">+86 this week</div></div>
+        <div className="card stat"><div className="stat-label">Tracked wallets</div><div className="stat-value">{scoredWallets.length || '—'}</div><div className="stat-foot">EOAs ranked from indexed flow</div></div>
         <div className="card stat"><div className="stat-label">Transfers scanned</div><div className="stat-value">{transfers.length || '—'}</div><div className="stat-foot">Last 20 blocks · live RPC</div></div>
       </section>
 
@@ -159,23 +147,20 @@ export default function Home() {
             <div className="panel-head"><div><div className="panel-title">Momentum board</div><div className="panel-subtitle">Tokens with unusual wallet activity</div></div><div className="live"><span className="dot" /> Live feed</div></div>
             <div className="filters">{['All activity', 'Smart wallets', 'New launches', 'Liquidity'].map((item) => <button key={item} className={`filter ${filter === item ? 'selected' : ''}`} onClick={() => setFilter(item)}>{item}</button>)}</div>
             <div className="table-wrap"><table className="table"><thead><tr><th>Asset</th><th>Signal</th><th>Price</th><th>1h</th><th>Wallets</th><th>Confidence</th></tr></thead><tbody>
-              <tr><td><div className="token"><div className="token-icon">S</div><div><div className="token-name">Somnia</div><div className="token-ticker">$SOMI · native</div></div></div></td><td><span className="badge">Accumulation</span></td><td className="mono">$0.0842</td><td className="green">+12.8%</td><td>142</td><td><span className="green">High</span></td></tr>
-              <tr><td><div className="token"><div className="token-icon purple">W</div><div><div className="token-name">Waveform</div><div className="token-ticker">$WAVE · 0x91...a8</div></div></div></td><td><span className="badge">Smart entry</span></td><td className="mono">$0.0198</td><td className="green">+31.4%</td><td>38</td><td><span className="green">High</span></td></tr>
-              <tr><td><div className="token"><div className="token-icon orange">N</div><div><div className="token-name">Neon Cat</div><div className="token-ticker">$NEONCAT · new</div></div></div></td><td><span className="badge warn">Fresh launch</span></td><td className="mono">$0.0007</td><td className="green">+8.1%</td><td>27</td><td><span className="amber">Medium</span></td></tr>
-              <tr><td><div className="token"><div className="token-icon blue">A</div><div><div className="token-name">Astra</div><div className="token-ticker">$ASTRA · 0x44...02</div></div></div></td><td><span className="badge">Liquidity in</span></td><td className="mono">$0.0064</td><td className="red">-2.3%</td><td>19</td><td><span className="amber">Medium</span></td></tr>
+              {signalRows.length ? signalRows.map((transfer, index) => <tr key={`${transfer.tokenShort}-${index}`}><td><div className="token"><div className={`token-icon ${index % 2 ? 'purple' : ''}`}>{(transfer.symbol || transfer.tokenShort || 'T').slice(0, 1).toUpperCase()}</div><div><div className="token-name">{transfer.symbol || transfer.tokenShort}</div><div className="token-ticker">Observed transfer · blk {transfer.blockNumber.toLocaleString('en-US')}</div></div></div></td><td><span className={`badge ${transfer.direction === 'SELL' ? 'warn' : ''}`}>{transfer.direction || 'TRANSFER'}</span></td><td className="mono">{displayPrice(transfer.priceUsd) || '—'}</td><td className="muted">—</td><td className="muted">—</td><td><span className="amber">Observed</span></td></tr>) : <tr><td colSpan={6} className="muted">No indexed signal rows yet — waiting for persistent worker data.</td></tr>}
             </tbody></table></div>
           </div>
           <div className="cta"><div><strong>Turn on early-wallet alerts</strong><span>Get a signal when tracked wallets move together.</span></div><button className="btn"><Bell size={14} /> Create alert</button></div>
         </div>
 
         <aside>
-          <div className="card panel"><div className="panel-head"><div><div className="panel-title">Signal stream</div><div className="panel-subtitle">{transfers.length ? 'Fresh ERC-20 activity from Somnia' : 'What is happening now'}</div></div><Radio size={16} className="green" /></div><div className="feed">{transfers.length ? transfers.slice(0, 5).map((transfer, index) => <div className="feed-item" key={`${transfer.transactionHash || transfer.blockNumber}-${index}`}><div className="feed-icon"><ArrowUpRight size={14} /></div><div className="feed-text"><strong className={transfer.direction === 'SELL' ? 'red' : 'green'}>{transfer.direction || 'TRANSFER'}</strong> · <span className="green">{transfer.symbol || transfer.tokenShort}</span>{transfer.amountDisplay ? <span className="muted"> · {transfer.amountDisplay}</span> : null}{displayPrice(transfer.priceUsd) ? <span className="amber"> · {displayPrice(transfer.priceUsd)}</span> : null}<br /><span className="muted mono">{transfer.fromShort} → {transfer.toShort}</span></div><div className="feed-time">blk {transfer.blockNumber.toLocaleString('en-US')}</div></div>) : demoEvents.map((event, index) => <div className="feed-item" key={index}><div className="feed-icon"><EventIcon type={event.icon} /></div><div className="feed-text">{event.text}</div><div className="feed-time">{event.time}</div></div>)}</div></div>
-          <div className="card panel" style={{ marginTop: 12 }}><div className="panel-head"><div><div className="panel-title">Top wallets</div><div className="panel-subtitle">Heuristic early-flow score · not PnL</div></div><Wallet size={16} className="muted" /></div><div className="wallets">{scoredWallets.length ? scoredWallets.slice(0, 4).map((wallet) => <div className="wallet" key={wallet.address}><div className="wallet-left"><div className="avatar">{wallet.score}</div><div><div className="wallet-name">{wallet.shortAddress} <span className="wallet-tier">{wallet.tier}</span></div><div className="wallet-address">{wallet.reason} · {wallet.transfers} transfers</div></div></div><div className="wallet-pnl mono">{wallet.winRate != null ? `${wallet.winRate}% win` : wallet.earlyEntries ? `${wallet.earlyEntries} early` : `${wallet.uniqueTokens} tokens`}</div></div>) : demoWallets.map((wallet) => <div className="wallet" key={wallet.address}><div className="wallet-left"><div className="avatar">{wallet.avatar}</div><div><div className="wallet-name">{wallet.name}</div><div className="wallet-address mono">{wallet.address}</div></div></div><div className="wallet-pnl mono">{wallet.pnl}</div></div>)}</div></div>
+          <div className="card panel"><div className="panel-head"><div><div className="panel-title">Signal stream</div><div className="panel-subtitle">{transfers.length ? 'Fresh ERC-20 activity from Somnia' : 'What is happening now'}</div></div><Radio size={16} className="green" /></div><div className="feed">{transfers.length ? transfers.slice(0, 5).map((transfer, index) => <div className="feed-item" key={`${transfer.transactionHash || transfer.blockNumber}-${index}`}><div className="feed-icon"><ArrowUpRight size={14} /></div><div className="feed-text"><strong className={transfer.direction === 'SELL' ? 'red' : 'green'}>{transfer.direction || 'TRANSFER'}</strong> · <span className="green">{transfer.symbol || transfer.tokenShort}</span>{transfer.amountDisplay ? <span className="muted"> · {transfer.amountDisplay}</span> : null}{displayPrice(transfer.priceUsd) ? <span className="amber"> · {displayPrice(transfer.priceUsd)}</span> : null}<br /><span className="muted mono">{transfer.fromShort} → {transfer.toShort}</span></div><div className="feed-time">blk {transfer.blockNumber.toLocaleString('en-US')}</div></div>) : <div className="feed-item"><div className="feed-icon"><Radio size={14} /></div><div className="feed-text muted">No recent indexed transfers yet. The live RPC fallback is waiting for data.</div></div>}</div></div>
+          <div className="card panel" style={{ marginTop: 12 }}><div className="panel-head"><div><div className="panel-title">Top wallets</div><div className="panel-subtitle">Heuristic early-flow score · not PnL</div></div><Wallet size={16} className="muted" /></div><div className="wallets">{scoredWallets.length ? scoredWallets.slice(0, 4).map((wallet) => <div className="wallet" key={wallet.address}><div className="wallet-left"><div className="avatar">{wallet.score}</div><div><div className="wallet-name">{wallet.shortAddress} <span className="wallet-tier">{wallet.tier}</span></div><div className="wallet-address">{wallet.reason} · {wallet.transfers} transfers</div></div></div><div className="wallet-pnl mono">{wallet.winRate != null ? `${wallet.winRate}% win` : wallet.earlyEntries ? `${wallet.earlyEntries} early` : `${wallet.uniqueTokens} tokens`}</div></div>) : <div className="muted watch-empty">No wallet scores yet — the persistent indexer must run first.</div>}</div></div>
           <div className="card panel watch-panel"><div className="panel-head"><div><div className="panel-title">Watch wallets</div><div className="panel-subtitle">Filter live transfers by address</div></div><ShieldCheck size={16} className="muted" /></div><div className="watch-form"><input value={walletInput} onChange={(event) => setWalletInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') addWallet(); }} placeholder="0x wallet address" aria-label="Wallet address" /><button className="btn" onClick={addWallet}>Track</button></div>{watchError && <div className="error">{watchError}</div>}<div className="watch-list">{watchWallets.length ? watchWallets.map((wallet) => <div className="watch-row" key={wallet}><span className="mono">{wallet.slice(0, 8)}...{wallet.slice(-6)}</span><button className="remove" onClick={() => removeWallet(wallet)}>Remove</button></div>) : <div className="muted watch-empty">No wallets added yet. Up to 5 saved locally.</div>}</div></div>
         </aside>
       </section>
 
-      <footer className="footer"><span>Somnia Pulse is an early product prototype. Demo token rows are not live trade signals.</span><span><a href="https://docs.somnia.network/developer/network-info" target="_blank" rel="noreferrer">Network docs <ExternalLink size={11} /></a> · <span className="mono">RPC {network.ok ? 'connected' : 'offline'}</span></span></footer>
+      <footer className="footer"><span>Signals come from observed on-chain transfers. Wallet scores are heuristic and not realised PnL.</span><span><a href="https://docs.somnia.network/developer/network-info" target="_blank" rel="noreferrer">Network docs <ExternalLink size={11} /></a> · <span className="mono">RPC {network.ok ? 'connected' : 'offline'}</span></span></footer>
     </main>
   );
 }
