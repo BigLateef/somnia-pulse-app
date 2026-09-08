@@ -32,6 +32,9 @@ export default function Home() {
   const [watchError, setWatchError] = useState('');
   const [checking, setChecking] = useState(false);
   const [filter, setFilter] = useState('All activity');
+  const [pulsePrompt, setPulsePrompt] = useState('');
+  const [pulseStage, setPulseStage] = useState(0);
+  const [pulseResult, setPulseResult] = useState<string | null>(null);
 
   async function checkNetwork() {
     setChecking(true);
@@ -67,6 +70,17 @@ export default function Home() {
     } catch {
       setScoredWallets([]);
     }
+  }
+
+  function runPulse() {
+    setPulseResult(null);
+    setPulseStage(1);
+    window.setTimeout(() => setPulseStage(2), 1100);
+    window.setTimeout(() => setPulseStage(3), 2300);
+    window.setTimeout(() => {
+      setPulseStage(4);
+      setPulseResult(`${transfers.length ? `I found ${transfers.length} fresh ERC-20 transfers near block ${shortBlock(network.blockNumber)}.` : 'The RPC is responding, but no fresh transfer set is available yet.'} ${scoredWallets.length ? `${scoredWallets.length} EOA wallet score${scoredWallets.length === 1 ? '' : 's'} are currently visible.` : 'Persistent history will unlock wallet scoring once the worker is hosted.'}`);
+    }, 3900);
   }
 
   function addWallet() {
@@ -132,6 +146,13 @@ export default function Home() {
           <button className="btn" onClick={() => alert('Wallet connection lands in the next build.')}>Connect wallet</button>
           <button className="btn secondary" onClick={checkNetwork} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} /> {checking ? 'Checking…' : 'Refresh RPC'}</button>
         </div>
+      </section>
+
+      <section className="card panel" style={{ marginBottom: 12 }}>
+        <div className="panel-head"><div><div className="panel-title">Pulse analyst</div><div className="panel-subtitle">Ask what to watch while the live scan runs</div></div><Sparkles size={16} className="green" /></div>
+        <div className="watch-form"><input value={pulsePrompt} onChange={(event) => setPulsePrompt(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && pulseStage !== 1 && pulseStage !== 2 && pulseStage !== 3) runPulse(); }} placeholder="What is moving on Somnia right now?" aria-label="Pulse question" /><button className="btn" onClick={runPulse} disabled={pulseStage > 0 && pulseStage < 4}>{pulseStage > 0 && pulseStage < 4 ? 'Scanning…' : 'Run pulse'}</button></div>
+        {pulseStage > 0 && pulseStage < 4 ? <div className="feed-item" style={{ marginTop: 12 }}><div className="feed-icon"><Radio size={14} /></div><div className="feed-text"><strong className="green">{pulseStage === 1 ? 'Warming the signal map…' : pulseStage === 2 ? 'Reading fresh Somnia blocks…' : 'Scoring wallet flow…'}</strong><br /><span className="muted">This wait is the product: the scan turns raw chain activity into a readable answer.</span></div></div> : null}
+        {pulseResult ? <div className="feed-item" style={{ marginTop: 12 }}><div className="feed-icon"><Zap size={14} /></div><div className="feed-text"><strong className="green">Pulse complete</strong>{pulsePrompt ? <span className="muted"> · {pulsePrompt}</span> : null}<br /><span>{pulseResult}</span></div></div> : null}
       </section>
 
       <section className="stats">
